@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { UserPlus, Users, Briefcase, Clock, Zap, RefreshCw } from "lucide-react";
-import { EmployeeFormModal } from "@/components/dashboard/people/employee-form-modal";
+// Updated import to include the CRUD folder
+import { EmployeeFormModal } from "@/components/dashboard/people/CRUD/employee-form-modal";
 import { EmployeeTable } from "@/components/dashboard/people/employee-table";
 
 export default function PeoplePage() {
@@ -46,22 +47,59 @@ export default function PeoplePage() {
     setIsModalOpen(!isModalOpen);
   };
 
+  // Logic to calculate estimated monthly cost for different pay types
+  const calculateMonthlyObligation = () => {
+    return employees
+      .filter((e) => e.status === "Active")
+      .reduce((sum, e) => {
+        const rate = Number(e.pay_rate) || 0;
+        let monthlyEstimate = 0;
+
+        switch (e.pay_type) {
+          case "Monthly":
+            monthlyEstimate = rate;
+            break;
+          case "Daily":
+            // Est. 22 working days per month
+            monthlyEstimate = rate * 22;
+            break;
+          case "Hourly":
+            // Est. 8 hours/day * 22 days = 176 hours
+            // We'll replace this with real time-log data tomorrow!
+            monthlyEstimate = rate * 176;
+            break;
+          default:
+            monthlyEstimate = rate;
+        }
+        return sum + monthlyEstimate;
+      }, 0);
+  };
+
   // Stats Logic
   const stats = [
-    { title: "Total Employees", value: employees.length, icon: <Users />, sub: "Active directory" },
-    { title: "Currently Active", value: employees.filter(e => e.status === 'Active').length, icon: <Zap />, sub: "Working now" },
+    { 
+        title: "Total Employees", 
+        value: employees.length, 
+        icon: <Users />, 
+        sub: "Active directory" 
+    },
+    { 
+        title: "Currently Active", 
+        value: employees.filter(e => e.status === 'Active').length, 
+        icon: <Zap />, 
+        sub: "Working now" 
+    },
     { 
       title: "Interns", 
-      // Counts only if they are 'Internship' AND (Active OR Inactive). Excludes 'Exited'.
       value: employees.filter(e => e.employment_type === 'Internship' && e.status !== 'Exited').length, 
       icon: <Clock />, 
       sub: "Internship track" 
     },
     { 
       title: "Monthly Obligation", 
-      value: formatCurrency(employees.filter(e => e.pay_type === 'Monthly' && e.status === 'Active').reduce((sum, e) => sum + Number(e.pay_rate), 0)), 
+      value: formatCurrency(calculateMonthlyObligation()), 
       icon: <Briefcase />, 
-      sub: "Base payroll (Active)" 
+      sub: "Total Est. Payroll (Active)" 
     },
   ];
 
@@ -75,7 +113,7 @@ export default function PeoplePage() {
           </div>
           <p className="text-zinc-400 text-sm">Employee directory</p>
         </div>
-        <Button onClick={() => toggleModal()} className="gap-2 bg-blue-600 hover:bg-blue-700">
+        <Button onClick={() => toggleModal()} className="gap-2 bg-blue-600 hover:bg-blue-700 font-bold">
           <UserPlus className="h-4 w-4" /> Add Employee
         </Button>
       </div>
@@ -108,7 +146,7 @@ function StatCard({ title, value, icon, sub }: { title: string, value: string | 
         <span className="text-[10px] font-bold uppercase tracking-widest">{title}</span>
         <div className="h-4 w-4 text-zinc-400">{icon}</div>
       </div>
-      <div className="text-2xl font-bold text-zinc-50">{value}</div>
+      <div className="text-2xl font-bold text-zinc-50 truncate">{value}</div>
       <div className="text-xs text-zinc-500 mt-1">{sub}</div>
     </div>
   );
