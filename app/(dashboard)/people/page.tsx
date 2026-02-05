@@ -25,10 +25,9 @@ export default function PeoplePage() {
             Employee directory and pay information.
           </p>
         </div>
-        <Button asChild className="gap-2" variant="outline">
-          <Link href="#">
-            <UserPlus className="h-4 w-4" />
-            Add Employee
+        <Button asChild className="gap-2">
+          <Link href="/people/add">
+            <UserPlus className="h-4 w-4" /> Add Employee
           </Link>
         </Button>
       </div>
@@ -48,7 +47,9 @@ export default function PeoplePage() {
             {mockEmployees.map((emp) => (
               <TableRow key={emp.id}>
                 <TableCell className="font-medium text-zinc-50">
-                  {emp.first_name} {emp.last_name}
+                  <Link href={`/people/${emp.id}`} className="hover:underline">
+                    {emp.first_name} {emp.last_name}
+                  </Link>
                 </TableCell>
                 <TableCell className="text-zinc-400">{emp.department}</TableCell>
                 <TableCell className="text-zinc-400">{emp.pay_type}</TableCell>
