@@ -1,26 +1,66 @@
 @import "tailwindcss";
 
+/* =============================================================================
+   Modern Industrial Dark — Design System (Inventory-style reference)
+   Background: #09090b / #121212 | Surface: #18181b | Border: #27272a
+   ============================================================================= */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --border: #27272a;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #3f3f46;
+  --accent-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #09090b;
+  --destructive: #7f1d1d;
+  --destructive-foreground: #fafafa;
+  --success: #14532d;
+  --success-foreground: #fafafa;
+  --warning: #713f12;
+  --warning-foreground: #fafafa;
+  --ring: #71717a;
+  --radius: 0.5rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: calc(var(--radius));
+  --radius-lg: calc(var(--radius) + 2px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* Status badges */
+.badge-draft { background: var(--muted); color: var(--muted-foreground); }
+.badge-submitted { background: var(--warning); color: var(--warning-foreground); }
+.badge-approved { background: var(--success); color: var(--success-foreground); }
+.badge-rejected { background: var(--destructive); color: var(--destructive-foreground); }
+.badge-low { background: var(--warning); color: var(--warning-foreground); }
