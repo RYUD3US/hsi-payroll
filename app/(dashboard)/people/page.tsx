@@ -1,4 +1,4 @@
-import { mockEmployees } from "@/data/mockData";
+import { createClient } from "@/lib/supabase/server"; // Adjust path if needed
 import { formatCurrency } from "@/lib/utils";
 import {
   Table,
@@ -13,7 +13,19 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { UserPlus } from "lucide-react";
 
-export default function PeoplePage() {
+export default async function PeoplePage() {
+  const supabase = await createClient();
+
+  // Fetch data from your 'employees' table
+  const { data: employees, error } = await supabase
+    .from("employees")
+    .select("*")
+    .order("first_name", { ascending: true });
+
+  if (error) {
+    return <div className="p-6 text-red-500">Error loading employees: {error.message}</div>;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -44,7 +56,7 @@ export default function PeoplePage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockEmployees.map((emp) => (
+            {employees?.map((emp) => (
               <TableRow key={emp.id}>
                 <TableCell className="font-medium text-zinc-50">
                   <Link href={`/people/${emp.id}`} className="hover:underline">
@@ -63,6 +75,13 @@ export default function PeoplePage() {
                 </TableCell>
               </TableRow>
             ))}
+            {employees?.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-10 text-zinc-500">
+                  No employees found in the database.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
