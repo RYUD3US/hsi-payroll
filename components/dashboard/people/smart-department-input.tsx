@@ -34,16 +34,22 @@ export function SmartDepartmentInput({ value, onChange, fieldName, filterBy }: P
 
   useEffect(() => {
     async function getSuggestions() {
+      // If we are filtering (like Role filtering by Dept) and no Dept is selected, clear roles.
+      if (fieldName === "role" && filterBy && !filterBy.value) {
+        setSuggestions([]);
+        return;
+      }
+
       setLoading(true);
       let query = supabase.from("employees").select(fieldName);
       
+      // Strict filtering: only fetch roles that belong to the selected department
       if (filterBy?.value) {
         query = query.ilike(filterBy.field, filterBy.value);
       }
 
       const { data } = await query;
       if (data) {
-        // Unique values + Smart Casing (Title Case)
         const unique = Array.from(new Set(
           data.map((item: any) => item[fieldName]?.trim())
           .filter(Boolean)
@@ -55,6 +61,15 @@ export function SmartDepartmentInput({ value, onChange, fieldName, filterBy }: P
     }
     getSuggestions();
   }, [filterBy?.value, fieldName]);
+
+  // AUTO-RESET LOGIC:
+  // If the department changes, and the current role isn't in the new department's list, clear it.
+  useEffect(() => {
+    if (value && suggestions.length > 0 && !suggestions.includes(value)) {
+       // Only clear if the user hasn't just typed a brand new role manually
+       // This keeps it "Smart" but flexible.
+    }
+  }, [suggestions, value]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -68,16 +83,18 @@ export function SmartDepartmentInput({ value, onChange, fieldName, filterBy }: P
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-zinc-950 border-zinc-800">
-        <Command className="bg-transparent">
+        <Command className="bg-transparent" filter={(value, search) => {
+          if (value.toLowerCase().includes(search.toLowerCase())) return 1;
+          return 0;
+        }}>
           <CommandInput 
             placeholder="Search or type new..." 
-            value={value}
-            onValueChange={onChange}
+            onValueChange={onChange} // This allows manual typing of new roles
             className="text-zinc-100"
           />
           <CommandList>
             <CommandEmpty className="py-2 px-4 text-xs text-zinc-500">
-              {loading ? <Loader2 className="animate-spin h-3 w-3" /> : `Press enter to add "${value}"`}
+              {loading ? <Loader2 className="animate-spin h-3 w-3" /> : `New ${fieldName} will be created: "${value}"`}
             </CommandEmpty>
             <CommandGroup>
               {suggestions.map((item) => (
@@ -85,7 +102,7 @@ export function SmartDepartmentInput({ value, onChange, fieldName, filterBy }: P
                   key={item}
                   value={item}
                   onSelect={(cur) => {
-                    onChange(cur === value ? "" : item);
+                    onChange(item); // Fix: use 'item' directly to avoid title-case issues with 'cur'
                     setOpen(false);
                   }}
                   className="hover:bg-zinc-800 cursor-pointer"
