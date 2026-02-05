@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Input } from "@/components/ui/input";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -18,78 +18,80 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
 
 interface Props {
   value: string;
   onChange: (val: string) => void;
+  fieldName: "department" | "role";
+  filterBy?: { field: string; value: string };
 }
 
-export function SmartDepartmentInput({ value, onChange }: Props) {
+export function SmartDepartmentInput({ value, onChange, fieldName, filterBy }: Props) {
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
-    async function getDepartments() {
-      const { data } = await supabase.from("employees").select("department");
-      if (data) {
-        // Clean data: unique values, proper casing, no nulls
-        const uniqueDepts = Array.from(
-          new Set(
-            data
-              .map((d) => d.department?.trim())
-              .filter(Boolean)
-              .map((d) => d.charAt(0).toUpperCase() + d.slice(1).toLowerCase())
-          )
-        ).sort();
-        setSuggestions(uniqueDepts as string[]);
+    async function getSuggestions() {
+      setLoading(true);
+      let query = supabase.from("employees").select(fieldName);
+      
+      if (filterBy?.value) {
+        query = query.ilike(filterBy.field, filterBy.value);
       }
-    }
-    getDepartments();
-  }, [supabase]);
 
-  const handleSelect = (currentValue: string) => {
-    // Format: "web dev" -> "Web dev"
-    const formatted = currentValue.charAt(0).toUpperCase() + currentValue.slice(1).toLowerCase();
-    onChange(formatted);
-    setOpen(false);
-  };
+      const { data } = await query;
+      if (data) {
+        // Unique values + Smart Casing (Title Case)
+        const unique = Array.from(new Set(
+          data.map((item: any) => item[fieldName]?.trim())
+          .filter(Boolean)
+          .map((s: string) => s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' '))
+        )).sort();
+        setSuggestions(unique as string[]);
+      }
+      setLoading(false);
+    }
+    getSuggestions();
+  }, [filterBy?.value, fieldName]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50"
+          className="w-full justify-between bg-zinc-900 border-zinc-800 text-zinc-100 hover:bg-zinc-800"
         >
-          {value || "Select or type department..."}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          {value || `Select ${fieldName}...`}
+          <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-zinc-900 border-zinc-800">
-        <Command className="bg-zinc-900 text-zinc-50">
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-zinc-950 border-zinc-800">
+        <Command className="bg-transparent">
           <CommandInput 
-            placeholder="Search or add new..." 
-            onValueChange={(v) => onChange(v)}
-            className="text-zinc-50"
+            placeholder="Search or type new..." 
+            value={value}
+            onValueChange={onChange}
+            className="text-zinc-100"
           />
           <CommandList>
-            <CommandEmpty className="p-2 text-xs text-zinc-500">
-              Type to add "{value}" as a new department
+            <CommandEmpty className="py-2 px-4 text-xs text-zinc-500">
+              {loading ? <Loader2 className="animate-spin h-3 w-3" /> : `Press enter to add "${value}"`}
             </CommandEmpty>
             <CommandGroup>
-              {suggestions.map((dept) => (
+              {suggestions.map((item) => (
                 <CommandItem
-                  key={dept}
-                  value={dept}
-                  onSelect={() => handleSelect(dept)}
-                  className="aria-selected:bg-zinc-800 aria-selected:text-zinc-50"
+                  key={item}
+                  value={item}
+                  onSelect={(cur) => {
+                    onChange(cur === value ? "" : item);
+                    setOpen(false);
+                  }}
+                  className="hover:bg-zinc-800 cursor-pointer"
                 >
-                  <Check className={cn("mr-2 h-4 w-4", value === dept ? "opacity-100" : "opacity-0")} />
-                  {dept}
+                  <Check className={cn("mr-2 h-4 w-4", value === item ? "opacity-100" : "opacity-0")} />
+                  {item}
                 </CommandItem>
               ))}
             </CommandGroup>
