@@ -6,6 +6,10 @@ export interface PayrollLineInput {
   /** Approved timesheets for the period (or manual total). */
   regularHours: number;
   overtimeHours: number;
+  sickLeaveHours?: number;
+  paidLeaveHours?: number;
+  /** Holiday pay multiplier (e.g., 2.0 for double pay). */
+  holidayPayMultiplier?: number;
   /** Optional overrides; if set, calculation may use these instead of recomputing. */
   grossOverride?: number;
   taxOverride?: number;
@@ -20,6 +24,8 @@ export interface PayrollLineResult {
   employeeId: string;
   regularHours: number;
   overtimeHours: number;
+  sickLeaveHours: number;
+  paidLeaveHours: number;
   grossPay: number;
   taxableIncome: number;
   withholdingTax: number;
@@ -37,8 +43,12 @@ export interface PayrollRunInput {
   periodStart: string;
   periodEnd: string;
   checkDate: string;
+  glPostDate?: string;
+  deliveryAddress?: string;
+  payoutMethod?: string;
   lines: PayrollLineInput[];
   currency?: string;
+  holidayDoublePayEnabled?: boolean;
 }
 
 /** Result of the full run (totals + per-line). */
@@ -46,6 +56,9 @@ export interface PayrollRunResult {
   periodStart: string;
   periodEnd: string;
   checkDate: string;
+  glPostDate?: string;
+  deliveryAddress?: string;
+  payoutMethod?: string;
   totalGross: number;
   totalDeductions: number;
   totalNet: number;

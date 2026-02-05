@@ -1,6 +1,9 @@
+"use client";
+
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { PayrollTableSection } from "@/components/dashboard/payroll-table-section";
+import { DynamicSubheader } from "@/components/dashboard/dynamic-subheader";
 import {
   mockDashboardKpis,
   mockPayrollRuns,
@@ -13,9 +16,7 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">
           Dashboard
         </h1>
-        <p className="text-zinc-400">
-          Overview of payroll and timesheet activity.
-        </p>
+        <DynamicSubheader />
       </div>
 
       <KpiCards

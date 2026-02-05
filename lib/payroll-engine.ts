@@ -31,34 +31,53 @@ export const DEFAULT_PH_CONSTANTS: PhilippinePayrollConstants = {
 
 /**
  * Compute gross pay from hours and pay type.
+ * Supports Regular, Overtime, Sick Leave, Paid Leave, and Holiday Pay.
  */
 export function computeGrossPay(
   employee: Employee,
   regularHours: number,
-  overtimeHours: number
+  overtimeHours: number,
+  sickLeaveHours: number = 0,
+  paidLeaveHours: number = 0,
+  holidayPayMultiplier: number = 1.0
 ): number {
   const { pay_type, pay_rate } = employee;
   let regular = 0;
   let overtime = 0;
+  let sickLeave = 0;
+  let paidLeave = 0;
   const otMultiplier = 1.25; // 125% for OT
+  const holidayMultiplier = holidayPayMultiplier > 1.0 ? holidayPayMultiplier : 1.0;
 
   if (pay_type === "Hourly") {
     regular = regularHours * pay_rate;
     overtime = overtimeHours * pay_rate * otMultiplier;
+    sickLeave = sickLeaveHours * pay_rate;
+    paidLeave = paidLeaveHours * pay_rate;
   } else if (pay_type === "Monthly") {
     // Assume 22 days, 8 hours/day => 176 hours per month
     const hoursPerMonth = 176;
     const hourlyRate = pay_rate / hoursPerMonth;
     regular = regularHours * hourlyRate;
     overtime = overtimeHours * hourlyRate * otMultiplier;
+    sickLeave = sickLeaveHours * hourlyRate;
+    paidLeave = paidLeaveHours * hourlyRate;
   } else {
     // Daily
     const hoursPerDay = 8;
     const hourlyRate = pay_rate / hoursPerDay;
     regular = regularHours * hourlyRate;
     overtime = overtimeHours * hourlyRate * otMultiplier;
+    sickLeave = sickLeaveHours * hourlyRate;
+    paidLeave = paidLeaveHours * hourlyRate;
   }
-  return Math.round((regular + overtime) * 100) / 100;
+
+  // Apply holiday multiplier to regular hours if enabled
+  const holidayBonus = holidayMultiplier > 1.0 
+    ? regular * (holidayMultiplier - 1.0)
+    : 0;
+
+  return Math.round((regular + overtime + sickLeave + paidLeave + holidayBonus) * 100) / 100;
 }
 
 /**
@@ -118,10 +137,31 @@ export function calculatePayrollLine(
   input: PayrollLineInput,
   constants: PhilippinePayrollConstants = DEFAULT_PH_CONSTANTS
 ): PayrollLineResult {
-  const { employee, regularHours, overtimeHours, grossOverride, taxOverride, sssOverride, philhealthOverride, pagIbigOverride, otherDeductionsOverride } = input;
+  const {
+    employee,
+    regularHours,
+    overtimeHours,
+    sickLeaveHours = 0,
+    paidLeaveHours = 0,
+    holidayPayMultiplier = 1.0,
+    grossOverride,
+    taxOverride,
+    sssOverride,
+    philhealthOverride,
+    pagIbigOverride,
+    otherDeductionsOverride,
+  } = input;
 
   const grossPay =
-    grossOverride ?? computeGrossPay(employee, regularHours, overtimeHours);
+    grossOverride ??
+    computeGrossPay(
+      employee,
+      regularHours,
+      overtimeHours,
+      sickLeaveHours,
+      paidLeaveHours,
+      holidayPayMultiplier
+    );
   const taxableIncome = grossPay; // Simplify; subtract non-taxable benefits if needed.
 
   const sss = sssOverride ?? computeSSS(grossPay, constants);
@@ -146,6 +186,8 @@ export function calculatePayrollLine(
     employeeId: employee.id,
     regularHours,
     overtimeHours,
+    sickLeaveHours,
+    paidLeaveHours,
     grossPay,
     taxableIncome,
     withholdingTax,
@@ -167,7 +209,17 @@ export function calculatePayrollRun(
   constants: PhilippinePayrollConstants = DEFAULT_PH_CONSTANTS
 ): PayrollRunResult {
   const currency = input.currency ?? "PHP";
-  const lines = input.lines.map((line) => calculatePayrollLine(line, constants));
+  const holidayMultiplier = input.holidayDoublePayEnabled ? 2.0 : 1.0;
+  
+  const lines = input.lines.map((line) =>
+    calculatePayrollLine(
+      {
+        ...line,
+        holidayPayMultiplier: line.holidayPayMultiplier ?? holidayMultiplier,
+      },
+      constants
+    )
+  );
 
   const totalGross = lines.reduce((s, l) => s + l.grossPay, 0);
   const totalDeductions = lines.reduce((s, l) => s + l.totalDeductions, 0);
@@ -177,6 +229,9 @@ export function calculatePayrollRun(
     periodStart: input.periodStart,
     periodEnd: input.periodEnd,
     checkDate: input.checkDate,
+    glPostDate: input.glPostDate,
+    deliveryAddress: input.deliveryAddress,
+    payoutMethod: input.payoutMethod,
     totalGross: Math.round(totalGross * 100) / 100,
     totalDeductions: Math.round(totalDeductions * 100) / 100,
     totalNet: Math.round(totalNet * 100) / 100,
