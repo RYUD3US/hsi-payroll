@@ -55,17 +55,22 @@ export default function EmployeeFormPage({ params }: { params: Promise<{ id: str
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-
+  
+    // 1. Prepare the payload and include the missing 'full_name'
     const payload = {
       ...formData,
+      full_name: `${formData.first_name} ${formData.last_name}`.trim(),
       pay_rate: parseFloat(formData.pay_rate),
+      // Ensure is_active is set for new employees if your DB requires it
+      is_active: true, 
     };
-
+  
     const { error } = isEdit 
       ? await supabase.from("employees").update(payload).eq("id", id)
       : await supabase.from("employees").insert([payload]);
-
+  
     if (error) {
+      console.error("Supabase Error:", error);
       alert(error.message);
     } else {
       router.push("/people");
