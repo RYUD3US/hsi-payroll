@@ -12,7 +12,6 @@ import { EmployeeTable } from "@/components/dashboard/people/employee-table";
 import { PaginationControls } from "@/components/dashboard/people/pagination-controls";
 import { EmployeeFormModal } from "@/components/dashboard/people/CRUD/employee-form-modal";
 
-// SearchParams needs to be wrapped in Suspense in Next.js 15+
 export default function PeoplePage() {
   return (
     <Suspense fallback={<div className="p-8 text-zinc-500">Loading People...</div>}>
@@ -41,7 +40,6 @@ function PeoplePageContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  // FETCH LOGIC
   const fetchEmployees = useCallback(async (full = false) => {
     full ? setLoading(true) : setIsRefreshing(true);
     const { data } = await supabase.from("employees").select("*").is("deleted_at", null).order("first_name");
@@ -50,13 +48,11 @@ function PeoplePageContent() {
     setIsRefreshing(false);
   }, [supabase]);
 
-  // LISTEN FOR URL ACTION
   useEffect(() => {
     const action = searchParams.get("action");
     if (action === "add") {
       setSelectedId(null);
       setIsModalOpen(true);
-      // Clean up the URL so the modal doesn't re-open on refresh
       router.replace("/people", { scroll: false });
     }
   }, [searchParams, router]);
@@ -69,7 +65,6 @@ function PeoplePageContent() {
     return () => clearInterval(pollingRef.current!);
   }, [fetchEmployees]);
 
-  // FILTER LOGIC
   useEffect(() => { setCurrentPage(1); }, [searchQuery, activeFilter, statusFilter, deptFilter, pageSize]);
 
   const { displayEmployees, totalFound, totalPages } = useMemo(() => {
@@ -89,7 +84,8 @@ function PeoplePageContent() {
 
   return (
     <div className="space-y-6 p-4">
-      <header className="flex flex-wrap items-center justify-between gap-4">
+      {/* RESPONSIVE HEADER: Stacks on mobile, row on desktop */}
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold text-zinc-50">People</h1>
@@ -99,19 +95,21 @@ function PeoplePageContent() {
             Showing: <b className="text-blue-400">{activeFilter}</b> • <b className="text-emerald-400">{statusFilter}</b>
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
+
+        {/* RESPONSIVE ACTIONS: Stacks search and button on mobile */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
             <Input 
               placeholder="Search..." 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)} 
-              className="pl-9 bg-zinc-900 border-zinc-800 w-64 h-9" 
+              className="pl-9 bg-zinc-900 border-zinc-800 w-full h-9" 
             />
           </div>
           <Button 
             onClick={() => { setSelectedId(null); setIsModalOpen(true); }} 
-            className="bg-blue-600 h-9 text-xs"
+            className="bg-blue-600 hover:bg-blue-700 h-9 text-xs w-full sm:w-auto px-4"
           >
             <UserPlus className="h-4 w-4 mr-2" /> Add Employee
           </Button>

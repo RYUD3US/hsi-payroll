@@ -10,7 +10,8 @@ interface NavHoverProps {
 
 export function NavHoverContent({ label, employees }: NavHoverProps) {
   const isActivePeople = label === "People";
-  const activeCount = employees.filter((e) => e.status === "Active").length;
+  // Syncing with your table's logic: count active employees
+  const activeCount = employees.filter((e) => e.is_active).length;
 
   return (
     <div className="flex w-[360px] overflow-hidden rounded-md bg-zinc-950">
@@ -19,7 +20,6 @@ export function NavHoverContent({ label, employees }: NavHoverProps) {
         <div className="space-y-1">
           {label === "People" && (
             <>
-              {/* This href is the "Trigger" */}
               <HoverItem 
                 href="/people?action=add" 
                 title="Add Employee" 
@@ -60,7 +60,7 @@ export function NavHoverContent({ label, employees }: NavHoverProps) {
             <div className="text-[10px] text-zinc-500 flex items-center justify-center gap-1">
               <Activity className="h-3 w-3" /> Active
             </div>
-            <div className="text-2xl font-bold text-emerald-500">{activeCount}</div>
+            <div className="text-2xl font-bold text-green-500">{activeCount}</div>
             <div className="mt-2 text-[10px] text-zinc-500">Total: {employees.length}</div>
           </div>
         </div>

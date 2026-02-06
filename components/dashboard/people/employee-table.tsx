@@ -13,7 +13,6 @@ interface EmployeeTableProps {
 
 export function EmployeeTable({ employees, loading, onRowClick }: EmployeeTableProps) {
   const getStatusBadge = (emp: any) => {
-    // If status is "Exited", show red regardless of is_active
     if (emp.status === "Exited") {
       return (
         <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-none">
@@ -22,7 +21,6 @@ export function EmployeeTable({ employees, loading, onRowClick }: EmployeeTableP
       );
     }
     
-    // Otherwise, toggle between Active and Inactive
     return (
       <Badge 
         variant={emp.is_active ? "success" : "secondary"} 
