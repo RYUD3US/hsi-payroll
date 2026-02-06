@@ -28,7 +28,7 @@ interface Props {
 
 // THE SMART FORMATTER
 const formatSmartly = (text: string) => {
-  const acronyms = ["QA", "HR", "IT", "UI", "UX", "CEO", "CTO", "CFO", "COO", "VP", "PR", "R&D"];
+  const acronyms = ["QA", "HR", "IT", "UI", "UX", "CEO", "CTO", "CFO", "COO", "VP", "PR", "R&D","GFX"];
   
   return text
     .split(' ')

@@ -1,33 +1,38 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Users, Briefcase, Clock, Zap, RefreshCw } from "lucide-react";
-// Updated import to include the CRUD folder
-import { EmployeeFormModal } from "@/components/dashboard/people/CRUD/employee-form-modal";
+import { UserPlus, RefreshCw, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+
+// Modular Imports
+import { StatsSection } from "@/components/dashboard/people/stats-section";
 import { EmployeeTable } from "@/components/dashboard/people/employee-table";
+import { PaginationControls } from "@/components/dashboard/people/pagination-controls";
+import { EmployeeFormModal } from "@/components/dashboard/people/CRUD/employee-form-modal";
 
 export default function PeoplePage() {
   const supabase = createClient();
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Filter & Pagination States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("All"); 
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [deptFilter, setDeptFilter] = useState("All");
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchEmployees = useCallback(async (showFullLoader = false) => {
-    if (showFullLoader) setLoading(true);
-    else setIsRefreshing(true);
-
-    const { data } = await supabase
-      .from("employees")
-      .select("*")
-      .is("deleted_at", null)
-      .order("first_name", { ascending: true });
-    
+  const fetchEmployees = useCallback(async (full = false) => {
+    full ? setLoading(true) : setIsRefreshing(true);
+    const { data } = await supabase.from("employees").select("*").is("deleted_at", null).order("first_name");
     if (data) setEmployees(data);
     setLoading(false);
     setIsRefreshing(false);
@@ -35,119 +40,56 @@ export default function PeoplePage() {
 
   useEffect(() => {
     fetchEmployees(true);
-    pollingRef.current = setInterval(() => {
-      if (document.visibilityState === 'visible') fetchEmployees(false);
-    }, 60000);
-
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+    pollingRef.current = setInterval(() => { if (document.visibilityState === 'visible') fetchEmployees(); }, 60000);
+    return () => clearInterval(pollingRef.current!);
   }, [fetchEmployees]);
 
-  const toggleModal = (id: string | null = null) => {
-    setSelectedId(id);
-    setIsModalOpen(!isModalOpen);
-  };
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, activeFilter, statusFilter, deptFilter, pageSize]);
 
-  // Logic to calculate estimated monthly cost for different pay types
-  const calculateMonthlyObligation = () => {
-    return employees
-      .filter((e) => e.status === "Active")
-      .reduce((sum, e) => {
-        const rate = Number(e.pay_rate) || 0;
-        let monthlyEstimate = 0;
-
-        switch (e.pay_type) {
-          case "Monthly":
-            monthlyEstimate = rate;
-            break;
-          case "Daily":
-            // Est. 22 working days per month
-            monthlyEstimate = rate * 22;
-            break;
-          case "Hourly":
-            // Est. 8 hours/day * 22 days = 176 hours
-            // We'll replace this with real time-log data tomorrow!
-            monthlyEstimate = rate * 176;
-            break;
-          default:
-            monthlyEstimate = rate;
-        }
-        return sum + monthlyEstimate;
-      }, 0);
-  };
-
-  // Stats Logic
-  const stats = [
-    { 
-        title: "Total Employees", 
-        value: employees.length, 
-        icon: <Users />, 
-        sub: "Active directory" 
-    },
-    { 
-        title: "Currently Active", 
-        value: employees.filter(e => e.status === 'Active').length, 
-        icon: <Zap />, 
-        sub: "Working now" 
-    },
-    { 
-      title: "Interns", 
-      value: employees.filter(e => e.employment_type === 'Internship' && e.status !== 'Exited').length, 
-      icon: <Clock />, 
-      sub: "Internship track" 
-    },
-    { 
-      title: "Monthly Obligation", 
-      value: formatCurrency(calculateMonthlyObligation()), 
-      icon: <Briefcase />, 
-      sub: "Total Est. Payroll (Active)" 
-    },
-  ];
+  const { displayEmployees, totalFound, totalPages } = useMemo(() => {
+    const filtered = employees.filter(e => {
+      const matchSearch = `${e.first_name} ${e.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) || e.role?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchType = activeFilter === "All" || e.employment_type === activeFilter;
+      const matchStatus = statusFilter === "All" || e.status === statusFilter;
+      const matchDept = deptFilter === "All" || e.department === deptFilter;
+      return matchSearch && matchType && matchStatus && matchDept;
+    });
+    return {
+      displayEmployees: filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+      totalFound: filtered.length,
+      totalPages: Math.ceil(filtered.length / pageSize)
+    };
+  }, [employees, searchQuery, activeFilter, statusFilter, deptFilter, pageSize, currentPage]);
 
   return (
     <div className="space-y-6 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold text-zinc-50">People</h1>
             {isRefreshing && <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />}
           </div>
-          <p className="text-zinc-400 text-sm">Employee directory</p>
+          <p className="text-xs text-zinc-500 mt-1">
+            Showing: <b className="text-blue-400">{activeFilter}</b> • <b className="text-emerald-400">{statusFilter}</b>
+          </p>
         </div>
-        <Button onClick={() => toggleModal()} className="gap-2 bg-blue-600 hover:bg-blue-700 font-bold">
-          <UserPlus className="h-4 w-4" /> Add Employee
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+            <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 bg-zinc-900 border-zinc-800 w-64 h-9" />
+          </div>
+          <Button onClick={() => { setSelectedId(null); setIsModalOpen(true); }} className="bg-blue-600 h-9 text-xs"><UserPlus className="h-4 w-4 mr-2" /> Add Employee</Button>
+        </div>
+      </header>
+
+      <StatsSection employees={employees} activeFilter={activeFilter} statusFilter={statusFilter} deptFilter={deptFilter} onFilterChange={setActiveFilter} onStatusChange={setStatusFilter} onDeptChange={setDeptFilter} />
+
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+        <EmployeeTable employees={displayEmployees} loading={loading} onRowClick={(id) => { setSelectedId(id); setIsModalOpen(true); }} />
+        <PaginationControls currentPage={currentPage} totalPages={totalPages} totalFound={totalFound} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, i) => (
-          <StatCard key={i} {...stat} />
-        ))}
-      </div>
-
-      <EmployeeTable 
-        employees={employees} 
-        loading={loading} 
-        onRowClick={(id) => toggleModal(id)} 
-      />
-
-      <EmployeeFormModal 
-        isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); fetchEmployees(false); }} 
-        employeeId={selectedId} 
-      />
-    </div>
-  );
-}
-
-function StatCard({ title, value, icon, sub }: { title: string, value: string | number, icon: any, sub: string }) {
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-      <div className="flex items-center justify-between text-zinc-500 mb-2">
-        <span className="text-[10px] font-bold uppercase tracking-widest">{title}</span>
-        <div className="h-4 w-4 text-zinc-400">{icon}</div>
-      </div>
-      <div className="text-2xl font-bold text-zinc-50 truncate">{value}</div>
-      <div className="text-xs text-zinc-500 mt-1">{sub}</div>
+      <EmployeeFormModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); fetchEmployees(); }} employeeId={selectedId} />
     </div>
   );
 }
