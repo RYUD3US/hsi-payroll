@@ -1,24 +1,35 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { UserPlus, RefreshCw, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
-// Modular Imports
 import { StatsSection } from "@/components/dashboard/people/stats-section";
 import { EmployeeTable } from "@/components/dashboard/people/employee-table";
 import { PaginationControls } from "@/components/dashboard/people/pagination-controls";
 import { EmployeeFormModal } from "@/components/dashboard/people/CRUD/employee-form-modal";
 
+// SearchParams needs to be wrapped in Suspense in Next.js 15+
 export default function PeoplePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-zinc-500">Loading People...</div>}>
+      <PeoplePageContent />
+    </Suspense>
+  );
+}
+
+function PeoplePageContent() {
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Filter & Pagination States
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All"); 
   const [statusFilter, setStatusFilter] = useState("All");
@@ -30,6 +41,7 @@ export default function PeoplePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
+  // FETCH LOGIC
   const fetchEmployees = useCallback(async (full = false) => {
     full ? setLoading(true) : setIsRefreshing(true);
     const { data } = await supabase.from("employees").select("*").is("deleted_at", null).order("first_name");
@@ -38,12 +50,26 @@ export default function PeoplePage() {
     setIsRefreshing(false);
   }, [supabase]);
 
+  // LISTEN FOR URL ACTION
+  useEffect(() => {
+    const action = searchParams.get("action");
+    if (action === "add") {
+      setSelectedId(null);
+      setIsModalOpen(true);
+      // Clean up the URL so the modal doesn't re-open on refresh
+      router.replace("/people", { scroll: false });
+    }
+  }, [searchParams, router]);
+
   useEffect(() => {
     fetchEmployees(true);
-    pollingRef.current = setInterval(() => { if (document.visibilityState === 'visible') fetchEmployees(); }, 60000);
+    pollingRef.current = setInterval(() => { 
+      if (document.visibilityState === 'visible') fetchEmployees(); 
+    }, 60000);
     return () => clearInterval(pollingRef.current!);
   }, [fetchEmployees]);
 
+  // FILTER LOGIC
   useEffect(() => { setCurrentPage(1); }, [searchQuery, activeFilter, statusFilter, deptFilter, pageSize]);
 
   const { displayEmployees, totalFound, totalPages } = useMemo(() => {
@@ -76,20 +102,53 @@ export default function PeoplePage() {
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-            <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 bg-zinc-900 border-zinc-800 w-64 h-9" />
+            <Input 
+              placeholder="Search..." 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              className="pl-9 bg-zinc-900 border-zinc-800 w-64 h-9" 
+            />
           </div>
-          <Button onClick={() => { setSelectedId(null); setIsModalOpen(true); }} className="bg-blue-600 h-9 text-xs"><UserPlus className="h-4 w-4 mr-2" /> Add Employee</Button>
+          <Button 
+            onClick={() => { setSelectedId(null); setIsModalOpen(true); }} 
+            className="bg-blue-600 h-9 text-xs"
+          >
+            <UserPlus className="h-4 w-4 mr-2" /> Add Employee
+          </Button>
         </div>
       </header>
 
-      <StatsSection employees={employees} activeFilter={activeFilter} statusFilter={statusFilter} deptFilter={deptFilter} onFilterChange={setActiveFilter} onStatusChange={setStatusFilter} onDeptChange={setDeptFilter} />
+      <StatsSection 
+        employees={employees} 
+        activeFilter={activeFilter} 
+        statusFilter={statusFilter} 
+        deptFilter={deptFilter} 
+        onFilterChange={setActiveFilter} 
+        onStatusChange={setStatusFilter} 
+        onDeptChange={setDeptFilter} 
+      />
 
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
-        <EmployeeTable employees={displayEmployees} loading={loading} onRowClick={(id) => { setSelectedId(id); setIsModalOpen(true); }} />
-        <PaginationControls currentPage={currentPage} totalPages={totalPages} totalFound={totalFound} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
+        <EmployeeTable 
+          employees={displayEmployees} 
+          loading={loading} 
+          onRowClick={(id) => { setSelectedId(id); setIsModalOpen(true); }} 
+        />
+        <PaginationControls 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          totalFound={totalFound} 
+          pageSize={pageSize} 
+          onPageChange={setCurrentPage} 
+          onPageSizeChange={setPageSize} 
+        />
       </div>
 
-      <EmployeeFormModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); fetchEmployees(); }} employeeId={selectedId} />
+      <EmployeeFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => { setIsModalOpen(false); fetchEmployees(); }} 
+        employeeId={selectedId} 
+      />
     </div>
   );
 }
