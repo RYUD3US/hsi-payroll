@@ -40,12 +40,56 @@ function PeoplePageContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
+  /**
+   * UPDATED FETCH LOGIC:
+   * Now checks the logged-in user's role to filter visibility
+   */
   const fetchEmployees = useCallback(async (full = false) => {
     full ? setLoading(true) : setIsRefreshing(true);
-    const { data } = await supabase.from("employees").select("*").is("deleted_at", null).order("first_name");
-    if (data) setEmployees(data);
-    setLoading(false);
-    setIsRefreshing(false);
+    
+    try {
+      // 1. Get current session user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 2. Fetch user role and metadata from profiles table
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, employee_id')
+        .eq('id', user.id)
+        .single();
+
+      // 3. Build query based on role
+      let query = supabase.from("employees").select("*").is("deleted_at", null);
+
+      // If Supervisor, restrict to their specific department
+      if (profile?.role === 'supervisor') {
+        // First get the supervisor's own department
+        const { data: managerData } = await supabase
+          .from('employees')
+          .select('department')
+          .eq('id', profile.employee_id)
+          .single();
+        
+        if (managerData?.department) {
+          query = query.eq('department', managerData.department);
+        }
+      } 
+      // If regular Employee, they only see themselves
+      else if (profile?.role === 'employee') {
+        query = query.eq('id', profile.employee_id);
+      }
+      // System Admin and HR see everything
+
+      const { data } = await query.order("first_name");
+      if (data) setEmployees(data);
+      
+    } catch (error) {
+      console.error("Fetch Error:", error);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
   }, [supabase]);
 
   useEffect(() => {
@@ -84,7 +128,7 @@ function PeoplePageContent() {
 
   return (
     <div className="space-y-6 p-4">
-      {/* RESPONSIVE HEADER: Stacks on mobile, row on desktop */}
+      {/* RESPONSIVE HEADER: Fixed for mobile squashing */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
@@ -96,7 +140,6 @@ function PeoplePageContent() {
           </p>
         </div>
 
-        {/* RESPONSIVE ACTIONS: Stacks search and button on mobile */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
