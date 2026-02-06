@@ -10,7 +10,8 @@ const supabaseAdmin = createClient(
 
 export async function addEmployeeAndInvite(formData: any, organizationId: string) {
   try {
-    // 1. Database Insert - Explicitly mapping the payroll fields
+    // 1. Create the Employee record first
+    // Status is set to "Inactive" and is_active to false until they verify
     const { data: newEmployee, error: dbError } = await supabaseAdmin
       .from("employees")
       .insert([{
@@ -20,38 +21,55 @@ export async function addEmployeeAndInvite(formData: any, organizationId: string
           email: formData.email,
           department: formData.department,
           role: formData.role,
-          organization_id: organizationId,
-          employment_type: formData.employment_type, // FIX: Sends "Full-time"
+          organization_id: organizationId, 
+          employment_type: formData.employment_type,
           pay_type: formData.pay_type || "Monthly",
-          pay_rate: formData.pay_rate,               // FIX: Sends the actual number
-          status: "Pending", 
+          pay_rate: formData.pay_rate,
+          status: "Inactive", // User is inactive until password setup
+          is_active: false,   // Matching the boolean field in your schema
       }])
       .select().single();
 
     if (dbError) throw new Error(dbError.message);
 
-    // 2. Email Invitation - Use fallback URL if ENV is missing
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     
-    const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+    // 2. Invite the user via email
+    // This sends the link they will use to set their own password
+    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       formData.email,
       {
-        data: { organization_id: organizationId, employee_id: newEmployee.id },
-        redirectTo: `${siteUrl}/auth/confirm`,
+        data: { 
+            organization_id: organizationId, 
+            employee_id: newEmployee.id,
+        },
+        // Redirect them to a specific password setup page
+        redirectTo: `${siteUrl}/auth/set-password`, 
       }
     );
 
-    // Provide a clearer error for the rate limit
     if (inviteError) {
-       if (inviteError.message.includes("rate limit")) {
-         throw new Error("Supabase Email limit reached. The employee was added to the table, but the email couldn't be sent yet.");
-       }
+       if (inviteError.message.includes("rate limit")) throw new Error("Supabase Email limit reached.");
        throw new Error(inviteError.message);
     }
+
+    // 3. Link the Profile to the Employee and Organization
+    // This ensures the auth.users entry matches your business logic tables
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        employee_id: newEmployee.id,
+        organization_id: organizationId,
+        role: formData.role || 'employee'
+      })
+      .eq("id", inviteData.user.id); 
+
+    if (profileError) throw new Error(profileError.message);
 
     revalidatePath("/people");
     return { success: true };
   } catch (error: any) {
+    console.error("Error in addEmployeeAndInvite:", error);
     return { error: error.message };
   }
 }
